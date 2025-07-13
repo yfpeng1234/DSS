@@ -4,7 +4,8 @@ from PIL import Image
 from einops import repeat, reduce
 from typing import Optional, Union
 from dataclasses import dataclass
-from modelscope import snapshot_download
+# from modelscope import snapshot_download
+from huggingface_hub import snapshot_download
 from einops import rearrange
 import numpy as np
 from PIL import Image
@@ -192,11 +193,18 @@ class ModelConfig:
             # Download
             if not skip_download:
                 downloaded_files = glob.glob(self.origin_file_pattern, root_dir=os.path.join(local_model_path, self.model_id))
+                # snapshot_download(
+                #     self.model_id,
+                #     local_dir=os.path.join(local_model_path, self.model_id),
+                #     allow_file_pattern=allow_file_pattern,
+                #     ignore_file_pattern=downloaded_files,
+                #     local_files_only=False
+                # )
                 snapshot_download(
                     self.model_id,
                     local_dir=os.path.join(local_model_path, self.model_id),
-                    allow_file_pattern=allow_file_pattern,
-                    ignore_file_pattern=downloaded_files,
+                    allow_patterns=self.origin_file_pattern,
+                    ignore_patterns=downloaded_files,
                     local_files_only=False
                 )
             
