@@ -94,7 +94,7 @@ def save_video_as_image(video1,video2,video3,image_path):
 
 if __name__ == "__main__":
     # load model
-    ckpt_dir = "ckpt/demo_lora_v3_10samples/epoch-79.safetensors"
+    ckpt_dir = "ckpt/demo_lora_v3_100samples/epoch-399.safetensors"
     pipe = load_model(ckpt_dir)
 
     # load dataset
@@ -143,8 +143,8 @@ if __name__ == "__main__":
         video1=input_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
         video2=decoded_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
         video3=pred_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
-        os.makedirs(f"result/demo_lora_v3/{dataset.split}", exist_ok=True)
-        save_video_as_image(video1, video2, video3, f"result/demo_lora_v3/{dataset.split}/demo_lora_v3_result_{i}.png")
+        os.makedirs(f"result/demo_lora_v3_100samples/{dataset.split}", exist_ok=True)
+        save_video_as_image(video1, video2, video3, f"result/demo_lora_v3_100samples/{dataset.split}/demo_lora_v3_100samples_result_{i}.png")
 
         mse_list.append(mse)
         lpips_list.append(lpips)

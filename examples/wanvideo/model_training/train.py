@@ -103,7 +103,7 @@ if __name__ == "__main__":
                       height=256,
                       width=256,
                       num_frames=9,
-                      sample_num=10,
+                      sample_num=100,
                       )
     model = WanTrainingModule(
         model_paths=args.model_paths,

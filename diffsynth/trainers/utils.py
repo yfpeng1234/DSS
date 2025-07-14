@@ -387,7 +387,7 @@ def launch_training_task(
     model, optimizer, dataloader, scheduler = accelerator.prepare(model, optimizer, dataloader, scheduler)
 
     if accelerator.is_main_process:
-        wandb.init(project="debug", name="demo_lora_v3_10_sample")
+        wandb.init(project="debug", name="demo_lora_v3_100_sample")
     
     for epoch_id in range(num_epochs):
         for data in tqdm(dataloader):
