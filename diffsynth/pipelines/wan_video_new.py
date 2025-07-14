@@ -267,12 +267,16 @@ class WanVideoPipeline(BasePipeline):
         timestep_id = torch.randint(0, self.scheduler.num_train_timesteps, (1,))
         timestep = self.scheduler.timesteps[timestep_id].to(dtype=self.torch_dtype, device=self.device)
         
-        inputs["latents"] = self.scheduler.add_noise(inputs["input_latents"], inputs["noise"], timestep)
+        # inputs["latents"] = self.scheduler.add_noise(inputs["input_latents"], inputs["noise"], timestep)
+        noised_latents=self.scheduler.add_noise(inputs["input_latents"], inputs["noise"], timestep)
+        inputs["latents"]=inputs["input_latents"].clone()
+        inputs["latents"][:,:,1:]=noised_latents[:,:,1:]
         training_target = self.scheduler.training_target(inputs["input_latents"], inputs["noise"], timestep)
         
         noise_pred = self.model_fn(**inputs, timestep=timestep)
         
-        loss = torch.nn.functional.mse_loss(noise_pred.float(), training_target.float())
+        # loss = torch.nn.functional.mse_loss(noise_pred.float(), training_target.float())
+        loss = torch.nn.functional.mse_loss(noise_pred[:,:,1:].float(), training_target[:,:,1:].float())
         loss = loss * self.scheduler.training_weight(timestep)
         return loss
 
@@ -547,6 +551,7 @@ class WanVideoPipeline(BasePipeline):
         tea_cache_model_id: Optional[str] = "",
         # progress_bar
         progress_bar_cmd=tqdm,
+        video_latents: Optional[torch.Tensor] = None,
     ):
         # Scheduler
         self.scheduler.set_timesteps(num_inference_steps, denoising_strength=denoising_strength, shift=sigma_shift)
@@ -578,10 +583,13 @@ class WanVideoPipeline(BasePipeline):
         for unit in self.units:
             inputs_shared, inputs_posi, inputs_nega = self.unit_runner(unit, self, inputs_shared, inputs_posi, inputs_nega)
 
+        inputs_shared['latents']=video_latents
+        inputs_shared['latents'][:,:,1:]=inputs_shared['noise'][:,:,1:]
+
         # Denoise
         self.load_models_to_device(self.in_iteration_models)
         models = {name: getattr(self, name) for name in self.in_iteration_models}
-        for progress_id, timestep in enumerate(progress_bar_cmd(self.scheduler.timesteps)):
+        for progress_id, timestep in enumerate(self.scheduler.timesteps):
             timestep = timestep.unsqueeze(0).to(dtype=self.torch_dtype, device=self.device)
 
             # Inference
@@ -596,7 +604,8 @@ class WanVideoPipeline(BasePipeline):
                 noise_pred = noise_pred_posi
 
             # Scheduler
-            inputs_shared["latents"] = self.scheduler.step(noise_pred, self.scheduler.timesteps[progress_id], inputs_shared["latents"])
+            # inputs_shared["latents"] = self.scheduler.step(noise_pred, self.scheduler.timesteps[progress_id], inputs_shared["latents"])
+            inputs_shared["latents"][:,:,1:] = self.scheduler.step(noise_pred[:,:,1:], self.scheduler.timesteps[progress_id], inputs_shared["latents"][:,:,1:])
         
         # VACE (TODO: remove it)
         if vace_reference_image is not None:

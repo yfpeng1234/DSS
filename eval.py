@@ -33,7 +33,7 @@ def load_dataset():
     )
     return dataset
 
-def video_predict(pipe, prompt,):
+def video_predict(pipe, prompt,video_latents):
     video = pipe(
         prompt=prompt,
         seed=1,
@@ -42,6 +42,7 @@ def video_predict(pipe, prompt,):
         width=256,
         num_frames=9,
         cfg_scale=1.0,
+        video_latents=video_latents,
     )
     return video
 
@@ -84,7 +85,7 @@ def save_video_as_image(video1,video2,video3,image_path):
 
 if __name__ == "__main__":
     # load model
-    ckpt_dir = "ckpt/demo_lora/epoch-39.safetensors"
+    ckpt_dir = "ckpt/demo_lora_v1/epoch-39.safetensors"
     pipe = load_model(ckpt_dir)
 
     # load dataset
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     decoded_video=pipe.vae.decode(input_latents, device=pipe.device) # [1,3,9,256,256] (-1,1)
 
     # video prediction
-    pred_video=video_predict(pipe, prompt)      # [1,3,9,256,256] (-1,1)
+    pred_video=video_predict(pipe, prompt, input_latents)      # [1,3,9,256,256] (-1,1)
 
     # calculate metrics
     gt=input_video.squeeze(0).permute(1,0,2,3)*0.5 + 0.5
@@ -119,4 +120,4 @@ if __name__ == "__main__":
     video2=decoded_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
     video3=pred_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
     os.makedirs("result/demo_lora", exist_ok=True)
-    save_video_as_image(video1, video2, video3, "result/demo_lora/demo_lora_result.png")
+    save_video_as_image(video1, video2, video3, "result/demo_lora/demo_lora_result_v1.png")

@@ -10,7 +10,7 @@ accelerate launch --num_processes 4 examples/wanvideo/model_training/train.py \
   --learning_rate 1e-4 \
   --num_epochs 40 \
   --remove_prefix_in_ckpt "pipe.dit." \
-  --output_path "./ckpt/demo_lora" \
+  --output_path "./ckpt/demo_lora_v1" \
   --lora_base_model "dit" \
   --lora_target_modules "q,k,v,o,ffn.0,ffn.2" \
   --lora_rank 32
