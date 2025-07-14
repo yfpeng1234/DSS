@@ -5,6 +5,7 @@ from PIL import Image
 from diffsynth import save_video, VideoData
 from diffsynth.pipelines.wan_video_new import WanVideoPipeline, ModelConfig
 from diffsynth.trainers.utils import VideoDataset
+from data_utils.dataset import MyDataset
 import lpips
 import piqa
 
@@ -23,14 +24,20 @@ def load_model(ckpt_dir):
     return pipe
 
 def load_dataset():
-    dataset=VideoDataset(
-        base_path="data/sample",
-        metadata_path="data/sample/metadata.csv",
-        height=256,
-        width=256,
-        num_frames=9,
-        repeat=100,
-    )
+    # dataset=VideoDataset(
+    #     base_path="data/sample",
+    #     metadata_path="data/sample/metadata.csv",
+    #     height=256,
+    #     width=256,
+    #     num_frames=9,
+    #     repeat=100,
+    # )
+    dataset=MyDataset(base_path='./data/procgen_raw/ninja',
+                      split='same',
+                      height=256,
+                      width=256,
+                      num_frames=9,
+                      )
     return dataset
 
 def video_predict(pipe, prompt,video_latents):
@@ -85,13 +92,13 @@ def save_video_as_image(video1,video2,video3,image_path):
 
 if __name__ == "__main__":
     # load model
-    ckpt_dir = "ckpt/demo_lora_v1/epoch-39.safetensors"
+    ckpt_dir = "ckpt/demo_lora_v2/epoch-39.safetensors"
     pipe = load_model(ckpt_dir)
 
     # load dataset
     # import ipdb; ipdb.set_trace()
     dataset = load_dataset()
-    data=dataset[0]
+    data=dataset[1]
     video=data["video"]
     prompt=data["prompt"]
 
@@ -120,4 +127,4 @@ if __name__ == "__main__":
     video2=decoded_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
     video3=pred_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
     os.makedirs("result/demo_lora", exist_ok=True)
-    save_video_as_image(video1, video2, video3, "result/demo_lora/demo_lora_result_v1.png")
+    save_video_as_image(video1, video2, video3, "result/demo_lora/demo_lora_result_v2_image2.png")

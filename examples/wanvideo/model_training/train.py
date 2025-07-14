@@ -1,6 +1,7 @@
 import torch, os, json
 from diffsynth.pipelines.wan_video_new import WanVideoPipeline, ModelConfig
 from diffsynth.trainers.utils import DiffusionTrainingModule, VideoDataset, ModelLogger, launch_training_task, wan_parser
+from data_utils.dataset import MyDataset
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
@@ -96,7 +97,13 @@ class WanTrainingModule(DiffusionTrainingModule):
 if __name__ == "__main__":
     parser = wan_parser()
     args = parser.parse_args()
-    dataset = VideoDataset(args=args)
+    # dataset = VideoDataset(args=args)
+    dataset=MyDataset(base_path='./data/procgen_raw/ninja',
+                      split='same',
+                      height=256,
+                      width=256,
+                      num_frames=9,
+                      )
     model = WanTrainingModule(
         model_paths=args.model_paths,
         model_id_with_origin_paths=args.model_id_with_origin_paths,
