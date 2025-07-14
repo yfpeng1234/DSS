@@ -4,6 +4,7 @@ from PIL import Image
 import pandas as pd
 from tqdm import tqdm
 from accelerate import Accelerator
+import wandb
 
 
 
@@ -384,6 +385,9 @@ def launch_training_task(
     dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, collate_fn=lambda x: x[0])
     accelerator = Accelerator(gradient_accumulation_steps=gradient_accumulation_steps)
     model, optimizer, dataloader, scheduler = accelerator.prepare(model, optimizer, dataloader, scheduler)
+
+    if accelerator.is_main_process:
+        wandb.init(project="debug", name="demo_lora_v3_10_sample")
     
     for epoch_id in range(num_epochs):
         for data in tqdm(dataloader):
@@ -394,6 +398,11 @@ def launch_training_task(
                 optimizer.step()
                 model_logger.on_step_end(loss)
                 scheduler.step()
+
+                loss_avg=accelerator.reduce(loss.detach(), reduction="mean").item()
+                if accelerator.is_main_process:
+                    wandb.log({"loss": loss_avg})
+
         model_logger.on_epoch_end(accelerator, model, epoch_id)
 
 

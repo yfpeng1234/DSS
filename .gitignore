@@ -4,3 +4,4 @@ diffsynth.egg-info/
 __pycache__/
 ckpt/
 result/
+wandb/

@@ -103,6 +103,7 @@ if __name__ == "__main__":
                       height=256,
                       width=256,
                       num_frames=9,
+                      sample_num=10,
                       )
     model = WanTrainingModule(
         model_paths=args.model_paths,
@@ -113,6 +114,7 @@ if __name__ == "__main__":
         lora_rank=args.lora_rank,
         use_gradient_checkpointing_offload=args.use_gradient_checkpointing_offload,
         extra_inputs=args.extra_inputs,
+        use_gradient_checkpointing=False
     )
     model_logger = ModelLogger(
         args.output_path,

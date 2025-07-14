@@ -235,7 +235,7 @@ def preprocess_video(video, torch_dtype=torch.bfloat16, device='cpu', pattern="B
     return video
 
 class MyDataset(torch.utils.data.Dataset):
-    def __init__(self, base_path, split, height, width, num_frames):
+    def __init__(self, base_path, split, height, width, num_frames, sample_num=None):
         assert split in ['same', 'iid', 'ood']
 
         self.base_path = base_path
@@ -253,24 +253,35 @@ class MyDataset(torch.utils.data.Dataset):
         self.iid_items=self.info['iid_items']
         self.ood_items=self.info['ood_items']
         self.action_dataset=np.load(os.path.join(base_path, 'action.npy'))
+
+        self.sample_num=None
+        self.repeat=1
+        if sample_num is not None:
+            assert sample_num<=100 and 100%sample_num==0
+            self.same_items=self.same_items[:sample_num]
+            self.iid_items=self.iid_items[:sample_num]
+            self.ood_items=self.ood_items[:sample_num]
+            self.sample_num=sample_num
+            self.repeat=100//sample_num
     
     def __len__(self):
-        return 100
         if self.split == 'same':
-            return len(self.same_items)
+            return len(self.same_items)*self.repeat
         elif self.split == 'iid':
-            return len(self.iid_items)
+            return len(self.iid_items)*self.repeat
         elif self.split == 'ood':
-            return len(self.ood_items)
+            return len(self.ood_items)*self.repeat
     
     def __getitem__(self, idx):
+        if self.sample_num is not None:
+            idx=idx%self.sample_num
+        
         if self.split == 'same':
             video_idx,start_idx=self.same_items[idx]
         elif self.split == 'iid':
             video_idx,start_idx=self.iid_items[idx]
         elif self.split == 'ood':
             video_idx,start_idx=self.ood_items[idx]
-        video_idx,start_idx=self.same_items[idx%2]
         
         video_dir=os.path.join(self.video_path, self.video_names[video_idx])
         raw_video=VideoData(video_dir, height=self.height, width=self.width)
