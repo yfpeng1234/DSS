@@ -253,7 +253,8 @@ class Head(nn.Module):
         self.modulation = nn.Parameter(torch.randn(1, 2, dim) / dim**0.5)
 
     def forward(self, x, t_mod):
-        shift, scale = (self.modulation.to(dtype=t_mod.dtype, device=t_mod.device) + t_mod).chunk(2, dim=1)
+        batch_size = x.shape[0]
+        shift, scale = (self.modulation.repeat(batch_size,1,1).to(dtype=t_mod.dtype, device=t_mod.device) + t_mod.unsqueeze(1)).chunk(2, dim=1)
         x = (self.head(self.norm(x) * (1 + scale) + shift))
         return x
 

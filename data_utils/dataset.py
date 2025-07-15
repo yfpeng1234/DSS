@@ -286,10 +286,10 @@ class MyDataset(torch.utils.data.Dataset):
         video_dir=os.path.join(self.video_path, self.video_names[video_idx])
         raw_video=VideoData(video_dir, height=self.height, width=self.width)
         raw_video=[raw_video[i] for i in range(start_idx,start_idx+self.num_frames)]
-        # video=preprocess_video(raw_video)                                       # [C,T,H,W] (-1,1)
+        video=preprocess_video(raw_video)                                       # [C,T,H,W] (-1,1)
         action=self.action_dataset[video_idx,start_idx:start_idx+self.num_frames-1] # [T-1,]
-        prompt=parse_prompt(action)
+        # prompt=parse_prompt(action)
         return {
-            'video':raw_video,
-            'prompt':prompt
+            'video':video,
+            'prompt':action
         }

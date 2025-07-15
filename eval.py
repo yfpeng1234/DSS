@@ -6,7 +6,7 @@ from PIL import Image
 from diffsynth import save_video, VideoData
 from diffsynth.pipelines.wan_video_new import WanVideoPipeline, ModelConfig
 from diffsynth.trainers.utils import VideoDataset
-from data_utils.dataset import MyDataset
+from data_utils.dataset import MyDataset, parse_prompt
 import lpips
 import piqa
 import numpy as np
@@ -94,7 +94,7 @@ def save_video_as_image(video1,video2,video3,image_path):
 
 if __name__ == "__main__":
     # load model
-    ckpt_dir = "ckpt/demo_lora_v3_100samples/epoch-399.safetensors"
+    ckpt_dir = "ckpt/demo_lora_v4_100samples/step-11000.safetensors"
     pipe = load_model(ckpt_dir)
 
     # load dataset
@@ -121,9 +121,11 @@ if __name__ == "__main__":
         data=dataset[i]
         video=data["video"]
         prompt=data["prompt"]
+        prompt=prompt.reshape(1,-1)
 
         # gt and upper bound
-        input_video=pipe.preprocess_video(video)        # [1,3,9,256,256] (-1,1)
+        # input_video=pipe.preprocess_video(video)        # [1,3,9,256,256] (-1,1)
+        input_video=video.unsqueeze(0).to(dtype=pipe.torch_dtype, device=pipe.device)
         input_latents=pipe.vae.encode(input_video, device=pipe.device).to(dtype=pipe.torch_dtype, device=pipe.device) # [1,16,3,32,32]
         decoded_video=pipe.vae.decode(input_latents, device=pipe.device) # [1,3,9,256,256] (-1,1)
 
@@ -143,8 +145,8 @@ if __name__ == "__main__":
         video1=input_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
         video2=decoded_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
         video3=pred_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
-        os.makedirs(f"result/demo_lora_v3_100samples/{dataset.split}", exist_ok=True)
-        save_video_as_image(video1, video2, video3, f"result/demo_lora_v3_100samples/{dataset.split}/demo_lora_v3_100samples_result_{i}.png")
+        os.makedirs(f"result/demo_lora_v4_100samples/{dataset.split}", exist_ok=True)
+        save_video_as_image(video1, video2, video3, f"result/demo_lora_v4_100samples/{dataset.split}/demo_lora_v4_100samples_result_{i}.png")
 
         mse_list.append(mse)
         lpips_list.append(lpips)

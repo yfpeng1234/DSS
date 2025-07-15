@@ -25,7 +25,7 @@ from ..prompters import WanPrompter
 from ..vram_management import enable_vram_management, AutoWrappedModule, AutoWrappedLinear, WanAutoCastLayerNorm
 from ..lora import GeneralLoRALoader
 
-
+from data_utils.dataset import parse_prompt
 
 class BasePipeline(torch.nn.Module):
 
@@ -240,7 +240,7 @@ class WanVideoPipeline(BasePipeline):
         self.in_iteration_models = ("dit", "motion_controller", "vace")
         self.unit_runner = PipelineUnitRunner()
         self.units = [
-            WanVideoUnit_ShapeChecker(),
+            # WanVideoUnit_ShapeChecker(),
             WanVideoUnit_NoiseInitializer(),
             WanVideoUnit_InputVideoEmbedder(),
             WanVideoUnit_PromptEmbedder(),
@@ -264,7 +264,7 @@ class WanVideoPipeline(BasePipeline):
 
         
     def training_loss(self, **inputs):
-        timestep_id = torch.randint(0, self.scheduler.num_train_timesteps, (1,))
+        timestep_id = torch.randint(0, self.scheduler.num_train_timesteps, (inputs["batch_size"],))
         timestep = self.scheduler.timesteps[timestep_id].to(dtype=self.torch_dtype, device=self.device)
         
         # inputs["latents"] = self.scheduler.add_noise(inputs["input_latents"], inputs["noise"], timestep)
@@ -276,9 +276,9 @@ class WanVideoPipeline(BasePipeline):
         noise_pred = self.model_fn(**inputs, timestep=timestep)
         
         # loss = torch.nn.functional.mse_loss(noise_pred.float(), training_target.float())
-        loss = torch.nn.functional.mse_loss(noise_pred[:,:,1:].float(), training_target[:,:,1:].float())
-        loss = loss * self.scheduler.training_weight(timestep)
-        return loss
+        loss = torch.nn.functional.mse_loss(noise_pred[:,:,1:].float(), training_target[:,:,1:].float(), reduction="none").mean(dim=(1,2,3,4))
+        loss = loss * self.scheduler.training_weight(timestep).to(device=self.device, dtype=self.torch_dtype)
+        return loss.mean()
 
 
     def enable_vram_management(self, num_persistent_param_in_dit=None, vram_limit=None, vram_buffer=0.5):
@@ -579,6 +579,7 @@ class WanVideoPipeline(BasePipeline):
             "motion_bucket_id": motion_bucket_id,
             "tiled": tiled, "tile_size": tile_size, "tile_stride": tile_stride,
             "sliding_window_size": sliding_window_size, "sliding_window_stride": sliding_window_stride,
+            "batch_size": 1,
         }
         for unit in self.units:
             inputs_shared, inputs_posi, inputs_nega = self.unit_runner(unit, self, inputs_shared, inputs_posi, inputs_nega)
@@ -690,13 +691,13 @@ class WanVideoUnit_ShapeChecker(PipelineUnit):
 
 class WanVideoUnit_NoiseInitializer(PipelineUnit):
     def __init__(self):
-        super().__init__(input_params=("height", "width", "num_frames", "seed", "rand_device", "vace_reference_image"))
+        super().__init__(input_params=("height", "width", "num_frames", "seed", "rand_device", "vace_reference_image","batch_size"))
 
-    def process(self, pipe: WanVideoPipeline, height, width, num_frames, seed, rand_device, vace_reference_image):
+    def process(self, pipe: WanVideoPipeline, height, width, num_frames, seed, rand_device, vace_reference_image, batch_size):
         length = (num_frames - 1) // 4 + 1
         if vace_reference_image is not None:
             length += 1
-        noise = pipe.generate_noise((1, 16, length, height//8, width//8), seed=seed, rand_device=rand_device)
+        noise = pipe.generate_noise((batch_size, 16, length, height//8, width//8), seed=seed, rand_device=rand_device)
         if vace_reference_image is not None:
             noise = torch.concat((noise[:, :, -1:], noise[:, :, :-1]), dim=2)
         return {"noise": noise}
@@ -714,7 +715,7 @@ class WanVideoUnit_InputVideoEmbedder(PipelineUnit):
         if input_video is None:
             return {"latents": noise}
         pipe.load_models_to_device(["vae"])
-        input_video = pipe.preprocess_video(input_video)
+        # input_video = pipe.preprocess_video(input_video)
         input_latents = pipe.vae.encode(input_video, device=pipe.device, tiled=tiled, tile_size=tile_size, tile_stride=tile_stride).to(dtype=pipe.torch_dtype, device=pipe.device)
         if vace_reference_image is not None:
             vace_reference_image = pipe.preprocess_video([vace_reference_image])
@@ -723,6 +724,7 @@ class WanVideoUnit_InputVideoEmbedder(PipelineUnit):
         if pipe.scheduler.training:
             return {"latents": noise, "input_latents": input_latents}
         else:
+            raise NotImplementedError("`process` is not implemented.")
             latents = pipe.scheduler.add_noise(input_latents, noise, timestep=pipe.scheduler.timesteps[0])
             return {"latents": latents}
 
@@ -739,7 +741,12 @@ class WanVideoUnit_PromptEmbedder(PipelineUnit):
 
     def process(self, pipe: WanVideoPipeline, prompt, positive) -> dict:
         pipe.load_models_to_device(self.onload_model_names)
-        prompt_emb = pipe.prompter.encode_prompt(prompt, positive=positive, device=pipe.device)
+        assert len(prompt.shape)==2
+        prompt_list=[]
+        for i in range(prompt.shape[0]):
+            prompt_list.append(parse_prompt(prompt[i]))
+
+        prompt_emb = pipe.prompter.encode_prompt(prompt_list, positive=positive, device=pipe.device)
         return {"context": prompt_emb}
 
 

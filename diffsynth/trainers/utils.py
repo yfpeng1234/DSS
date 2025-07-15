@@ -357,8 +357,15 @@ class ModelLogger:
         self.state_dict_converter = state_dict_converter
         
     
-    def on_step_end(self, loss):
-        pass
+    def on_step_end(self, accelerator, model, step_id):
+        accelerator.wait_for_everyone()
+        if accelerator.is_main_process:
+            state_dict = accelerator.get_state_dict(model)
+            state_dict = accelerator.unwrap_model(model).export_trainable_state_dict(state_dict, remove_prefix=self.remove_prefix_in_ckpt)
+            state_dict = self.state_dict_converter(state_dict)
+            os.makedirs(self.output_path, exist_ok=True)
+            path = os.path.join(self.output_path, f"step-{step_id}.safetensors")
+            accelerator.save(state_dict, path, safe_serialization=True)
     
     
     def on_epoch_end(self, accelerator, model, epoch_id):
@@ -382,13 +389,14 @@ def launch_training_task(
     num_epochs: int = 1,
     gradient_accumulation_steps: int = 1,
 ):
-    dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, collate_fn=lambda x: x[0])
+    dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, batch_size=8, num_workers=4)
     accelerator = Accelerator(gradient_accumulation_steps=gradient_accumulation_steps)
     model, optimizer, dataloader, scheduler = accelerator.prepare(model, optimizer, dataloader, scheduler)
 
     if accelerator.is_main_process:
-        wandb.init(project="debug", name="demo_lora_v3_100_sample")
+        wandb.init(project="debug", name="demo_lora_v4_100_sample")
     
+    step_num=0
     for epoch_id in range(num_epochs):
         for data in tqdm(dataloader):
             with accelerator.accumulate(model):
@@ -396,14 +404,18 @@ def launch_training_task(
                 loss = model(data)
                 accelerator.backward(loss)
                 optimizer.step()
-                model_logger.on_step_end(loss)
+                # model_logger.on_step_end(loss)
                 scheduler.step()
 
                 loss_avg=accelerator.reduce(loss.detach(), reduction="mean").item()
                 if accelerator.is_main_process:
                     wandb.log({"loss": loss_avg})
+                
+                step_num+=1
+                if step_num%1000==0:
+                    model_logger.on_step_end(accelerator, model, step_num)
 
-        model_logger.on_epoch_end(accelerator, model, epoch_id)
+        # model_logger.on_epoch_end(accelerator, model, epoch_id)
 
 
 
