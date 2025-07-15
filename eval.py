@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import torch
 from PIL import Image
@@ -25,7 +25,7 @@ def load_model(ckpt_dir):
     # pipe.enable_vram_management()
     return pipe
 
-def load_dataset():
+def load_dataset(split):
     # dataset=VideoDataset(
     #     base_path="data/sample",
     #     metadata_path="data/sample/metadata.csv",
@@ -35,7 +35,7 @@ def load_dataset():
     #     repeat=100,
     # )
     dataset=MyDataset(base_path='./data/procgen_raw/ninja',
-                      split='same',
+                      split=split,
                       height=256,
                       width=256,
                       num_frames=9,
@@ -94,12 +94,16 @@ def save_video_as_image(video1,video2,video3,image_path):
 
 if __name__ == "__main__":
     # load model
-    ckpt_dir = "ckpt/demo_lora_v4_100samples/step-11000.safetensors"
+    exp_name='demo_lora_v4_100samples'
+    step_id=10000
+    split='ood'
+
+    ckpt_dir = f"ckpt/{exp_name}/step-{step_id}.safetensors"
     pipe = load_model(ckpt_dir)
 
     # load dataset
     # import ipdb; ipdb.set_trace()
-    dataset = load_dataset()
+    dataset = load_dataset(split)
     eval_num=10
     # data=dataset[1]
     # video=data["video"]
@@ -133,9 +137,9 @@ if __name__ == "__main__":
         pred_video=video_predict(pipe, prompt, input_latents)      # [1,3,9,256,256] (-1,1)
 
         # calculate metrics
-        gt=input_video.squeeze(0).permute(1,0,2,3)*0.5 + 0.5
-        ub=decoded_video.squeeze(0).permute(1,0,2,3)*0.5 + 0.5
-        pred=pred_video.squeeze(0).permute(1,0,2,3)*0.5 + 0.5
+        gt=input_video.squeeze(0).permute(1,0,2,3)[1:]*0.5 + 0.5
+        ub=decoded_video.squeeze(0).permute(1,0,2,3)[1:]*0.5 + 0.5
+        pred=pred_video.squeeze(0).permute(1,0,2,3)[1:]*0.5 + 0.5
         mse, lpips, psnr, ssim = metrics(gt, pred)
         mse_ub, lpips_ub, psnr_ub, ssim_ub = metrics(gt, ub)
         print(f"Metrics for prediction: MSE={mse}, LPIPS={lpips}, PSNR={psnr}, SSIM={ssim}")
@@ -145,8 +149,8 @@ if __name__ == "__main__":
         video1=input_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
         video2=decoded_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
         video3=pred_video.cpu().squeeze(0).permute(1,2,3,0)*127.5 + 127.5
-        os.makedirs(f"result/demo_lora_v4_100samples/{dataset.split}", exist_ok=True)
-        save_video_as_image(video1, video2, video3, f"result/demo_lora_v4_100samples/{dataset.split}/demo_lora_v4_100samples_result_{i}.png")
+        os.makedirs(f"result/{exp_name}/{dataset.split}", exist_ok=True)
+        save_video_as_image(video1, video2, video3, f"result/{exp_name}/{dataset.split}/{exp_name}_result_{i}.png")
 
         mse_list.append(mse)
         lpips_list.append(lpips)
