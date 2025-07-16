@@ -388,17 +388,26 @@ def launch_training_task(
     scheduler: torch.optim.lr_scheduler.LRScheduler,
     num_epochs: int = 1,
     gradient_accumulation_steps: int = 1,
+    batch_size: int = 8,
+    game: str = "ninja",
 ):
-    dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, batch_size=8, num_workers=4)
+    dataloader = torch.utils.data.DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=4)
     accelerator = Accelerator(gradient_accumulation_steps=gradient_accumulation_steps)
     model, optimizer, dataloader, scheduler = accelerator.prepare(model, optimizer, dataloader, scheduler)
 
     if accelerator.is_main_process:
-        wandb.init(project="debug", name="baseline_lora_v4")
+        wandb.init(project="debug", name=f"baseline_{game}")
+
+    pbar = tqdm(
+                total=100_000,
+                desc="Training",
+                dynamic_ncols=True,
+                disable=not accelerator.is_main_process
+            )
     
     step_num=0
     for epoch_id in range(num_epochs):
-        for data in tqdm(dataloader):
+        for data in dataloader:
             with accelerator.accumulate(model):
                 optimizer.zero_grad()
                 loss = model(data)
@@ -410,10 +419,17 @@ def launch_training_task(
                 loss_avg=accelerator.reduce(loss.detach(), reduction="mean").item()
                 if accelerator.is_main_process:
                     wandb.log({"loss": loss_avg})
+                    pbar.update(1)
                 
                 step_num+=1
                 if step_num%1000==0:
                     model_logger.on_step_end(accelerator, model, step_num)
+
+                if step_num==100_000:
+                    break
+
+        if step_num==100_000:
+            break
 
         # model_logger.on_epoch_end(accelerator, model, epoch_id)
 
@@ -455,6 +471,8 @@ def wan_parser():
     parser.add_argument("--extra_inputs", default=None, help="Additional model inputs, comma-separated.")
     parser.add_argument("--use_gradient_checkpointing_offload", default=False, action="store_true", help="Whether to offload gradient checkpointing to CPU memory.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Gradient accumulation steps.")
+    parser.add_argument("--game", type=str, default="ninja", help="Game name.")
+    parser.add_argument("--batch_size", type=int, default=8, help="Batch size.")
     return parser
 
 

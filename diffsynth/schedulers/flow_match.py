@@ -43,12 +43,12 @@ class FlowMatchScheduler():
     def step(self, model_output, timestep, sample, to_final=False, **kwargs):
         if isinstance(timestep, torch.Tensor):
             timestep = timestep.cpu()
-        timestep_id = torch.argmin((self.timesteps - timestep).abs())
-        sigma = self.sigmas[timestep_id]
+        timestep_id = torch.argmin((self.timesteps.unsqueeze(1) - timestep.unsqueeze(0)).abs(), dim=0)
+        sigma = self.sigmas[timestep_id].to(device=sample.device, dtype=sample.dtype)
         if to_final or timestep_id + 1 >= len(self.timesteps):
             sigma_ = 1 if (self.inverse_timesteps or self.reverse_sigmas) else 0
         else:
-            sigma_ = self.sigmas[timestep_id + 1]
+            sigma_ = self.sigmas[timestep_id + 1].to(device=sample.device, dtype=sample.dtype)
         prev_sample = sample + model_output * (sigma_ - sigma)
         return prev_sample
     

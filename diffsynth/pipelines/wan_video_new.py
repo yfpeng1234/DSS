@@ -579,7 +579,7 @@ class WanVideoPipeline(BasePipeline):
             "motion_bucket_id": motion_bucket_id,
             "tiled": tiled, "tile_size": tile_size, "tile_stride": tile_stride,
             "sliding_window_size": sliding_window_size, "sliding_window_stride": sliding_window_stride,
-            "batch_size": 1,
+            "batch_size": video_latents.shape[0],
         }
         for unit in self.units:
             inputs_shared, inputs_posi, inputs_nega = self.unit_runner(unit, self, inputs_shared, inputs_posi, inputs_nega)
@@ -591,7 +591,7 @@ class WanVideoPipeline(BasePipeline):
         self.load_models_to_device(self.in_iteration_models)
         models = {name: getattr(self, name) for name in self.in_iteration_models}
         for progress_id, timestep in enumerate(self.scheduler.timesteps):
-            timestep = timestep.unsqueeze(0).to(dtype=self.torch_dtype, device=self.device)
+            timestep = timestep.unsqueeze(0).repeat(inputs_shared['batch_size']).to(dtype=self.torch_dtype, device=self.device)
 
             # Inference
             noise_pred_posi = self.model_fn(**models, **inputs_shared, **inputs_posi, timestep=timestep)

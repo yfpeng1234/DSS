@@ -2,6 +2,7 @@ import torch, os, json
 from diffsynth.pipelines.wan_video_new import WanVideoPipeline, ModelConfig
 from diffsynth.trainers.utils import DiffusionTrainingModule, VideoDataset, ModelLogger, launch_training_task, wan_parser
 from data_utils.dataset import MyDataset
+from data_utils.datasetv1 import ProcgenDataset
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
@@ -15,6 +16,7 @@ class WanTrainingModule(DiffusionTrainingModule):
         use_gradient_checkpointing=True,
         use_gradient_checkpointing_offload=False,
         extra_inputs=None,
+        batch_size=8,
     ):
         super().__init__()
         # Load models
@@ -46,7 +48,7 @@ class WanTrainingModule(DiffusionTrainingModule):
         self.use_gradient_checkpointing = use_gradient_checkpointing
         self.use_gradient_checkpointing_offload = use_gradient_checkpointing_offload
         self.extra_inputs = extra_inputs.split(",") if extra_inputs is not None else []
-        
+        self.batch_size = batch_size
         
     def forward_preprocess(self, data):
         # CFG-sensitive parameters
@@ -61,7 +63,7 @@ class WanTrainingModule(DiffusionTrainingModule):
             "height": 256,
             "width": 256,
             "num_frames": 9,
-            "batch_size": 8,
+            "batch_size": self.batch_size,
             # Please do not modify the following parameters
             # unless you clearly know what this will cause.
             "cfg_scale": 1,
@@ -99,12 +101,17 @@ if __name__ == "__main__":
     parser = wan_parser()
     args = parser.parse_args()
     # dataset = VideoDataset(args=args)
-    dataset=MyDataset(base_path='./data/procgen_raw/ninja',
-                      split='same',
-                      height=256,
-                      width=256,
-                      num_frames=9,
-                      )
+    # dataset=MyDataset(base_path='./data/procgen_raw/ninja',
+    #                   split='same',
+    #                   height=256,
+    #                   width=256,
+    #                   num_frames=9,
+    #                   )
+    dataset=ProcgenDataset(base_path='./data/procgen',
+                           game=args.game,
+                           height=256,
+                           width=256,
+                           num_frames=9)
     model = WanTrainingModule(
         model_paths=args.model_paths,
         model_id_with_origin_paths=args.model_id_with_origin_paths,
@@ -114,7 +121,8 @@ if __name__ == "__main__":
         lora_rank=args.lora_rank,
         use_gradient_checkpointing_offload=args.use_gradient_checkpointing_offload,
         extra_inputs=args.extra_inputs,
-        use_gradient_checkpointing=False
+        use_gradient_checkpointing=False,
+        batch_size=args.batch_size,
     )
     model_logger = ModelLogger(
         args.output_path,
@@ -126,4 +134,6 @@ if __name__ == "__main__":
         dataset, model, model_logger, optimizer, scheduler,
         num_epochs=args.num_epochs,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        batch_size=args.batch_size,
+        game=args.game,
     )
